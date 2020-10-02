@@ -13,7 +13,8 @@ var UPDATE_TIME = 1000 / 10;
 //We want the server to keep track of the whole game state and the clients just to send updates
 //in this case the game state are the coordinates of each player
 var gameState = {
-    players: {}
+    players: {},
+    activePlayers: {}
 }
 
 //when a client connects serve the static files in the public directory ie public/index.html
@@ -39,7 +40,16 @@ io.on('connection', function (socket) {
         //object creation in javascript
         gameState.players[socket.id] = {
             x: 0,
-            y: obj.y
+            y: obj.y,
+            pointer: 0,
+            isAlive: true
+        }
+
+        gameState.activePlayers[socket.id] = {
+            x: 0,
+            y: obj.y,
+            pointer: 0,
+            isAlive: true
         }
 
         //gameState.players is an object, not an array or list
@@ -55,6 +65,7 @@ io.on('connection', function (socket) {
 
         //delete the player object
         delete gameState.players[socket.id];
+        delete gameState.activePlayers[socket.id];
 
         console.log("There are now " + Object.keys(gameState.players).length + " players");
 
@@ -62,8 +73,28 @@ io.on('connection', function (socket) {
 
     //when I receive an update from a client, update the game state
     socket.on('clientUpdate', function (obj) {
-        gameState.players[socket.id].x = obj.x;
-        gameState.players[socket.id].y = obj.y;
+        gameState.activePlayers[socket.id].x = obj.x;
+        gameState.activePlayers[socket.id].y = obj.y;
+        gameState.activePlayers[socket.id].pointer = obj.pointer;
+        //gameState.activePlayers[socket.id].isAlive = obj.alive;
+
+    });
+
+    socket.on('attack', function (obj) {
+        for (var playerId in gameState.activePlayers) {
+            if (gameState.activePlayers.hasOwnProperty(playerId)) {
+    
+                //in this case I don't have to draw the pointer at my own position
+                if (playerId != socket.id) {
+                    var playerState = gameState.activePlayers[playerId];
+                    if (obj.x > playerState.x && obj.x < playerState.x + 100 && obj.y > playerState.y && obj.y < playerState.y + 100 ) {
+                        playerState.isAlive = false;
+                    }
+                   
+                }
+            }
+        }
+        
     });
 
     //setInterval calls the function at the given interval in time
@@ -71,6 +102,18 @@ io.on('connection', function (socket) {
     setInterval(function () {
         io.sockets.emit('state', gameState);
     }, UPDATE_TIME);
+
+    setInterval(function () {
+       for (var playerId in gameState.activePlayers) {
+        if (gameState.activePlayers.hasOwnProperty(playerId)) {
+            var playerState = gameState.activePlayers[playerId];
+            playerState.isAlive = true;
+               
+        }
+    }
+
+    }, 5000);
+
 
 
 });
